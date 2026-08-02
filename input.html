@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng Ký Giải Đấu TFT - Bản Test Offline</title>
+    <style>
+        :root { --bg-main: #0b0f19; --accent-color: #38bdf8; --card-bg: #1e293b; --text-light: #f8fafc; }
+        * { box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg-main); color: var(--text-light); padding: 20px; display: flex; justify-content: center; }
+        .form-container { max-width: 600px; width: 100%; background: var(--card-bg); padding: 30px; border-radius: 12px; border: 1px solid #334155; }
+        h1 { text-align: center; color: var(--accent-color); text-transform: uppercase; margin-top: 0; font-size: 1.5rem; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; font-weight: bold; margin-bottom: 8px; color: #94a3b8; }
+        input[type="text"] { width: 100%; padding: 10px; background: #0b0f19; border: 1px solid #475569; border-radius: 6px; color: white; font-size: 1rem; }
+        .member-block { border-left: 3px solid var(--accent-color); padding-left: 15px; margin-bottom: 15px; }
+        .member-title { font-weight: bold; color: #f59e0b; margin-bottom: 8px; font-size: 0.9rem; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        button { width: 100%; background: #10b981; color: white; border: none; padding: 12px; border-radius: 6px; font-weight: bold; font-size: 1.1rem; cursor: pointer; margin-top: 10px; }
+        button:hover { opacity: 0.9; }
+    </style>
+</head>
+<body>
+
+<div class="form-container">
+    <h1>📝 ĐĂNG KÝ GIẢI ĐẤU TFT 4v4 (BẢN TEST)</h1>
+    <p style="text-align: center; color: #94a3b8; font-size: 0.9rem;">Hãy nhập thử vài đội (nhập đủ 8 đội để test bên trang Admin nhé)</p>
+    
+    <form id="regForm">
+        <div class="form-group">
+            <label>TÊN ĐỘI (TEAM NAME) *</label>
+            <input type="text" id="teamName" required placeholder="Ví dụ: Đội 1: Dragon">
+        </div>
+        <div id="members-container"></div>
+        <button type="submit">🚀 Gửi Đăng Ký Thử Nghiệm</button>
+    </form>
+</div>
+
+<script>
+    // Tự sinh form 4 người
+    const container = document.getElementById('members-container');
+    for(let i = 1; i <= 4; i++) {
+        container.innerHTML += `
+            <div class="member-block">
+                <div class="member-title">THÀNH VIÊN ${i} ${i===1?'(ĐỘI TRƯỞNG)':''}</div>
+                <div class="grid-2">
+                    <input type="text" id="p_name_${i}" required placeholder="Họ tên">
+                    <input type="text" id="p_id_${i}" required placeholder="MSSV">
+                </div>
+            </div>`;
+    }
+
+    document.getElementById('regForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const teamName = document.getElementById('teamName').value.trim();
+        const players = [];
+        for(let i = 1; i <= 4; i++) {
+            players.push({
+                name: document.getElementById(`p_name_${i}`).value.trim(),
+                studentId: document.getElementById(`p_id_${i}`).value.trim()
+            });
+        }
+
+        // Đọc dữ liệu cũ trong localStorage ra
+        let currentRegs = JSON.parse(localStorage.getItem('TFT_LOCAL_REGISTRATIONS')) || [];
+        
+        // Thêm đội mới vào
+        currentRegs.push({ teamName, players, id: 'REG_' + Date.now() });
+        
+        // Lưu ngược lại vào localStorage
+        localStorage.setItem('TFT_LOCAL_REGISTRATIONS', JSON.stringify(currentRegs));
+
+        alert(`🎉 Đã nhận đơn đăng ký của [${teamName}] vào bộ nhớ tạm!`);
+        document.getElementById('regForm').reset();
+    });
+</script>
+</body>
+</html>
