@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TFT Tournament - Live Broadcast (Firebase)</title>
+    
+    <!-- Nhúng Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+
+    <style>
+        :root {
+            --bg-color: #050b14; --card-bg: #111827; --text-main: #f8fafc;
+            --text-muted: #94a3b8; --primary: #3b82f6; --success: #10b981;
+            --danger: #ef4444; --warning: #fbbf24; --gold-glow: 0 0 10px rgba(251, 191, 36, 0.5);
+        }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: radial-gradient(circle at top, #1e293b, var(--bg-color)); color: var(--text-main); margin: 0; padding: 30px; min-height: 100vh; }
+        h1, h2, h3 { text-align: center; color: var(--warning); text-transform: uppercase; letter-spacing: 2px; text-shadow: var(--gold-glow); }
+        .container { max-width: 1500px; margin: 0 auto; }
+        .stage-container { display: none; animation: fadeIn 0.5s ease-in-out; }
+        .stage-container.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .swiss-layout { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; align-items: start; }
+        .group-box { background: rgba(17, 24, 39, 0.8); border-radius: 12px; border: 1px solid #334155; backdrop-filter: blur(10px); overflow: hidden; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        .group-header { background: linear-gradient(90deg, #1e3a8a, #0f172a); padding: 15px; text-align: center; font-weight: 900; color: #60a5fa; font-size: 18px; letter-spacing: 1px; }
+        .group-body { padding: 15px; display: flex; flex-direction: column; gap: 15px; }
+        .match-card { background: #0f172a; padding: 15px; border-radius: 8px; border-left: 5px solid var(--text-muted); position: relative; }
+        .match-card.finished { border-left-color: var(--success); }
+        .team-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
+        .team-name { font-size: 16px; font-weight: bold; }
+        .team-score { font-size: 20px; font-weight: 900; color: var(--warning); background: rgba(251, 191, 36, 0.1); padding: 4px 12px; border-radius: 6px; }
+        .vs-divider { text-align: center; font-size: 12px; color: var(--text-muted); font-weight: bold; margin: 8px 0; letter-spacing: 3px; }
+        .winner-tag { color: var(--success); font-weight: bold; font-size: 14px; text-align: center; margin-top: 12px; padding-top: 10px; border-top: 1px solid #334155; }
+        .result-box { background: rgba(16, 185, 129, 0.1); border: 1px solid var(--success); border-radius: 8px; padding: 15px; margin-bottom: 20px; }
+        .result-box.eliminated { background: rgba(239, 68, 68, 0.1); border-color: var(--danger); }
+        .team-tag { background: #1e293b; padding: 10px; text-align: center; border-radius: 6px; margin-bottom: 8px; font-weight: bold; font-size: 16px; border-left: 4px solid; }
+        .finals-layout { display: grid; grid-template-columns: 1.2fr 1fr; gap: 30px; }
+        .leaderboard-table { width: 100%; border-collapse: collapse; background: rgba(17, 24, 39, 0.8); border-radius: 12px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+        .leaderboard-table th, .leaderboard-table td { padding: 16px; border-bottom: 1px solid #334155; text-align: center; }
+        .leaderboard-table th { background: #0f172a; color: var(--primary); font-size: 16px; text-transform: uppercase; }
+        .leaderboard-table tr:last-child td { border-bottom: none; }
+        .leaderboard-table tbody tr:hover { background: rgba(255, 255, 255, 0.05); }
+        .finals-matches { display: grid; grid-template-columns: 1fr; gap: 15px; }
+        .finals-match-card { background: #0f172a; padding: 15px; border-radius: 8px; border: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; }
+        .f-team { flex: 1; text-align: center; }
+        .f-score { font-size: 24px; font-weight: 900; color: var(--warning); padding: 0 20px; }
+        .f-top1 { font-size: 13px; color: var(--primary); margin-top: 5px; }
+        .summary-card { background: linear-gradient(135deg, #1e293b, #0f172a); padding: 30px; border-radius: 16px; border: 2px solid var(--warning); margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: var(--gold-glow); transform: scale(1); transition: 0.3s; }
+        .summary-card:hover { transform: scale(1.02); }
+        .rank-badge { color: black; font-size: 32px; font-weight: 900; width: 70px; height: 70px; display: flex; align-items: center; justify-content: center; border-radius: 50%; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
+        .member-list { display: flex; gap: 10px; margin-top: 15px; font-size: 15px; color: #cbd5e1; flex-wrap: wrap; }
+        .member-list span { background: rgba(0,0,0,0.3); padding: 6px 12px; border-radius: 20px; border: 1px solid #475569; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1 style="font-size: 36px; margin-bottom: 40px;">🔴 TRỰC TIẾP GIẢI ĐẤU TFT</h1>
+    
+    <div id="view-setup" class="stage-container active">
+        <h2 style="color: var(--text-muted); margin-top: 100px;">Đang chờ dữ liệu từ Admin. Vui lòng chờ...</h2>
+    </div>
+
+    <div id="view-swiss" class="stage-container">
+        <h2>VÒNG BẢNG (SWISS STAGE)</h2>
+        <div class="swiss-layout">
+            <div id="v-col-r1"></div>
+            <div id="v-col-r2"></div>
+            <div id="v-col-r3"></div>
+            <div id="v-col-result"></div>
+        </div>
+    </div>
+
+    <div id="view-finals" class="stage-container">
+        <h2 style="color: var(--success); font-size: 30px; margin-bottom: 30px;">🔥 VÒNG CHUNG KẾT 🔥</h2>
+        <div class="finals-layout">
+            <div>
+                <table class="leaderboard-table">
+                    <thead>
+                        <tr>
+                            <th>Hạng</th>
+                            <th style="text-align: left;">Đội Tuyển</th>
+                            <th>Số Trận</th>
+                            <th style="color: var(--primary);">Số Top 1</th>
+                            <th style="color: var(--warning);">Tổng Điểm</th>
+                        </tr>
+                    </thead>
+                    <tbody id="v-finals-leaderboard"></tbody>
+                </table>
+            </div>
+            <div class="finals-matches" id="v-finals-matches"></div>
+        </div>
+    </div>
+
+    <div id="view-summary" class="stage-container">
+        <h1 style="font-size: 45px; margin-bottom: 50px;">🏆 NHÀ VÔ ĐỊCH 🏆</h1>
+        <div id="v-summary-content" style="max-width: 900px; margin: 0 auto;"></div>
+    </div>
+</div>
+
+<script>
+    // ----------------------------------------------------
+    // CẤU HÌNH FIREBASE 
+    // ----------------------------------------------------
+    const firebaseConfig = {
+        apiKey: "AIzaSyBqnSskFjMQ4l8iEc8_lO8Wt3HJM_SoSK0",
+        authDomain: "tft-score.firebaseapp.com",
+        databaseURL: "https://tft-score-default-rtdb.firebaseio.com",
+        projectId: "tft-score",
+        storageBucket: "tft-score.firebasestorage.app",
+        messagingSenderId: "184916652079",
+        appId: "1:184916652079:web:9f10bba4009faf9b8716da",
+        measurementId: "G-PQ8X5TK37R"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    // ----------------------------------------------------
+
+    function renderTournamentData(data) {
+        if (!data || !data.stage) return;
+        document.querySelectorAll('.stage-container').forEach(el => el.classList.remove('active'));
+
+        if (data.stage === 'setup') {
+            document.getElementById('view-setup').classList.add('active');
+        } 
+        else if (data.stage === 'swiss') {
+            document.getElementById('view-swiss').classList.add('active');
+            renderSwissView(data);
+        } 
+        else if (data.stage === 'finals') {
+            document.getElementById('view-finals').classList.add('active');
+            renderFinalsView(data);
+        } 
+        else if (data.stage === 'summary') {
+            document.getElementById('view-summary').classList.add('active');
+            renderSummaryView(data);
+        }
+    }
+
+    function renderSwissView(data) {
+        const createMatchHTML = (match) => {
+            let t1 = data.teams.find(t => t.id === match.t1);
+            let t2 = data.teams.find(t => t.id === match.t2);
+            let isDone = match.winner !== null;
+            
+            return `
+            <div class="match-card ${isDone ? 'finished' : ''}">
+                <div class="team-row">
+                    <span class="team-name" style="${!t1 ? 'color: var(--text-muted); font-style: italic;' : ''}">${t1 ? t1.name : 'Đang ghép cặp...'}</span>
+                    <span class="team-score">${match.s1 || 0}</span>
+                </div>
+                <div class="vs-divider">VS</div>
+                <div class="team-row">
+                    <span class="team-name" style="${!t2 ? 'color: var(--text-muted); font-style: italic;' : ''}">${t2 ? t2.name : 'Đang ghép cặp...'}</span>
+                    <span class="team-score">${match.s2 || 0}</span>
+                </div>
+                ${isDone ? `<div class="winner-tag">👑 ${match.winner === match.t1 ? t1.name : t2.name} WIN</div>` : ''}
+            </div>`;
+        };
+
+        const createGroupHTML = (title, matches) => {
+            if(!matches || matches.length === 0) return '';
+            return `<div class="group-box"><div class="group-header">${title}</div><div class="group-body">${matches.map(m => createMatchHTML(m)).join('')}</div></div>`;
+        };
+
+        document.getElementById('v-col-r1').innerHTML = createGroupHTML("GROUP 0-0", data.matchHistory.r1);
+        document.getElementById('v-col-r2').innerHTML = createGroupHTML("GROUP 1-0", data.matchHistory.r2_high) + createGroupHTML("GROUP 0-1", data.matchHistory.r2_low);
+        document.getElementById('v-col-r3').innerHTML = createGroupHTML("GROUP 1-1", data.matchHistory.r3_mid);
+
+        let qT = data.teams.filter(t => data.teamStats[t.id].status === 'qualified');
+        let eT = data.teams.filter(t => data.teamStats[t.id].status === 'eliminated');
+        
+        document.getElementById('v-col-result').innerHTML = `
+            <div class="result-box"><div style="font-weight:bold;color:var(--success);text-align:center;margin-bottom:15px; letter-spacing: 1px;">✨ ĐÃ VÀO CHUNG KẾT</div>${qT.map(t => `<div class="team-tag" style="border-color:var(--success); color: white;">${t.name}</div>`).join('')}</div>
+            <div class="result-box eliminated"><div style="font-weight:bold;color:var(--danger);text-align:center;margin-bottom:15px; letter-spacing: 1px;">❌ BỊ LOẠI</div>${eT.map(t => `<div class="team-tag" style="border-color:var(--danger); color: white;">${t.name}</div>`).join('')}</div>`;
+    }
+
+    function renderFinalsView(data) {
+        let sortedTeams = Object.values(data.finalsData.teams).sort((a, b) => {
+            if (b.points !== a.points) return b.points - a.points; 
+            return b.top1 - a.top1;
+        });
+
+        document.getElementById('v-finals-leaderboard').innerHTML = sortedTeams.map((t, idx) => `
+            <tr>
+                <td style="font-size: 20px; font-weight: bold; color: ${idx === 0 ? 'var(--warning)' : 'white'}">#${idx + 1}</td>
+                <td style="font-weight: bold; font-size: 18px; text-align: left;">${t.name}</td>
+                <td>${t.matchesPlayed}/3</td>
+                <td style="color:var(--primary); font-weight:bold; font-size: 18px;">${t.top1}</td>
+                <td style="color:var(--warning); font-weight:bold; font-size: 22px;">${t.points}</td>
+            </tr>`).join('');
+
+        document.getElementById('v-finals-matches').innerHTML = data.finalsData.matches.map((m, idx) => `
+            <div class="finals-match-card">
+                <div class="f-team">
+                    <div style="font-size: 16px; font-weight: bold;">${data.finalsData.teams[m.p1].name}</div>
+                    <div class="f-top1">Top 1: ${m.top1_1 || 0}</div>
+                </div>
+                <div style="display:flex; align-items:center;">
+                    <span class="f-score">${m.s1 || 0}</span>
+                    <span style="color:var(--text-muted); font-size:12px;">VS</span>
+                    <span class="f-score">${m.s2 || 0}</span>
+                </div>
+                <div class="f-team">
+                    <div style="font-size: 16px; font-weight: bold;">${data.finalsData.teams[m.p2].name}</div>
+                    <div class="f-top1">Top 1: ${m.top1_2 || 0}</div>
+                </div>
+            </div>`).join('');
+    }
+
+    function renderSummaryView(data) {
+        let sortedFinalists = Object.values(data.finalsData.teams).sort((a, b) => {
+            if (b.points !== a.points) return b.points - a.points;
+            return b.top1 - a.top1;
+        });
+        
+        let top3 = sortedFinalists.slice(0, 3);
+        let rankColors = ['#fbbf24', '#94a3b8', '#b45309']; 
+        
+        document.getElementById('v-summary-content').innerHTML = top3.map((team, index) => {
+            let originalTeam = data.teams.find(t => t.id === team.id);
+            let membersHTML = originalTeam.members.filter(m => m && m.trim() !== "").map(m => `<span>🧑‍💻 ${m}</span>`).join('');
+            
+            return `
+            <div class="summary-card">
+                <div style="display: flex; gap: 30px; align-items: center;">
+                    <div class="rank-badge" style="background: ${rankColors[index]}">#${index + 1}</div>
+                    <div>
+                        <div style="font-size: 32px; font-weight: bold; color: white;">${team.name}</div>
+                        <div class="member-list">${membersHTML}</div>
+                    </div>
+                </div>
+                <div style="text-align: right;">
+                    <div style="font-size: 16px; color: var(--primary); margin-bottom: 10px;">Tổng Top 1: <strong style="color:white; font-size: 20px;">${team.top1}</strong></div>
+                    <div style="font-size: 18px; color: var(--text-muted); text-transform: uppercase;">Điểm Chung Cuộc</div>
+                    <div style="font-size: 48px; font-weight: 900; color: var(--success); line-height: 1; text-shadow: 0 0 10px rgba(16, 185, 129, 0.4);">${team.points}</div>
+                </div>
+            </div>`;
+        }).join('');
+    }
+
+    // LẮNG NGHE SỰ KIỆN TỪ FIREBASE REALTIME DATABASE
+    db.ref('tft_live_tournament').on('value', (snapshot) => {
+        const liveData = snapshot.val();
+        if (liveData) {
+            renderTournamentData(liveData);
+        }
+    });
+</script>
+</body>
+</html>
