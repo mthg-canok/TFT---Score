@@ -300,7 +300,7 @@
 
     function generateNextRound() {
         let currentMatches = currentRound === 1 ? matchHistory.r1 : currentRound === 2 ? [...matchHistory.r2_high, ...matchHistory.r2_low] : matchHistory.r3_mid;
-        if(!currentMatches.every(m => m.winner !== null)) return alert("Vui lòng nhập và LƯU đầy đủ kết quả vòng hiện tại!");
+        if(!currentMatches.every(m => m.winner !== null && m.winner !== undefined)) return alert("Vui lòng nhập và LƯU đầy đủ kết quả vòng hiện tại!");
 
         currentMatches.forEach(m => {
             teamStats[m.winner].w += 1;
@@ -338,7 +338,7 @@
     function createMatchCard(roundKey, matchIndex, matchInfo, eligibleTeams, isActive) {
         let opt1 = buildOptions(matchInfo, eligibleTeams, isActive, true);
         let opt2 = buildOptions(matchInfo, eligibleTeams, isActive, false);
-        let isSaved = matchInfo.winner !== null;
+        let isSaved = matchInfo.winner !== null && matchInfo.winner !== undefined;
         let winHTML = isSaved ? `<div class="winner-text" id="winner_${roundKey}_${matchIndex}">👑 ${teams.find(t => t.id === matchInfo.winner).name} WIN</div>` : '';
 
         return `
