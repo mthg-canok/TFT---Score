@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TFT Tournament - Live Broadcast (Firebase)</title>
-    
+    <title>TFT Tournament - Live Broadcast</title>
+
     <!-- Nhúng Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
@@ -15,37 +15,50 @@
             --text-muted: #94a3b8; --primary: #3b82f6; --success: #10b981;
             --danger: #ef4444; --warning: #fbbf24; --gold-glow: 0 0 10px rgba(251, 191, 36, 0.5);
         }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: radial-gradient(circle at top, #1e293b, var(--bg-color)); color: var(--text-main); margin: 0; padding: 30px; min-height: 100vh; }
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: radial-gradient(circle at top, #1e293b, var(--bg-color)); 
+            color: var(--text-main); margin: 0; padding: 30px; min-height: 100vh;
+        }
         h1, h2, h3 { text-align: center; color: var(--warning); text-transform: uppercase; letter-spacing: 2px; text-shadow: var(--gold-glow); }
         .container { max-width: 1500px; margin: 0 auto; }
+        
         .stage-container { display: none; animation: fadeIn 0.5s ease-in-out; }
         .stage-container.active { display: block; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
         .swiss-layout { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; align-items: start; }
         .group-box { background: rgba(17, 24, 39, 0.8); border-radius: 12px; border: 1px solid #334155; backdrop-filter: blur(10px); overflow: hidden; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
         .group-header { background: linear-gradient(90deg, #1e3a8a, #0f172a); padding: 15px; text-align: center; font-weight: 900; color: #60a5fa; font-size: 18px; letter-spacing: 1px; }
         .group-body { padding: 15px; display: flex; flex-direction: column; gap: 15px; }
+        
         .match-card { background: #0f172a; padding: 15px; border-radius: 8px; border-left: 5px solid var(--text-muted); position: relative; }
         .match-card.finished { border-left-color: var(--success); }
+        
         .team-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
         .team-name { font-size: 16px; font-weight: bold; }
         .team-score { font-size: 20px; font-weight: 900; color: var(--warning); background: rgba(251, 191, 36, 0.1); padding: 4px 12px; border-radius: 6px; }
+        
         .vs-divider { text-align: center; font-size: 12px; color: var(--text-muted); font-weight: bold; margin: 8px 0; letter-spacing: 3px; }
         .winner-tag { color: var(--success); font-weight: bold; font-size: 14px; text-align: center; margin-top: 12px; padding-top: 10px; border-top: 1px solid #334155; }
+
         .result-box { background: rgba(16, 185, 129, 0.1); border: 1px solid var(--success); border-radius: 8px; padding: 15px; margin-bottom: 20px; }
         .result-box.eliminated { background: rgba(239, 68, 68, 0.1); border-color: var(--danger); }
         .team-tag { background: #1e293b; padding: 10px; text-align: center; border-radius: 6px; margin-bottom: 8px; font-weight: bold; font-size: 16px; border-left: 4px solid; }
+
         .finals-layout { display: grid; grid-template-columns: 1.2fr 1fr; gap: 30px; }
         .leaderboard-table { width: 100%; border-collapse: collapse; background: rgba(17, 24, 39, 0.8); border-radius: 12px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
         .leaderboard-table th, .leaderboard-table td { padding: 16px; border-bottom: 1px solid #334155; text-align: center; }
         .leaderboard-table th { background: #0f172a; color: var(--primary); font-size: 16px; text-transform: uppercase; }
         .leaderboard-table tr:last-child td { border-bottom: none; }
         .leaderboard-table tbody tr:hover { background: rgba(255, 255, 255, 0.05); }
+        
         .finals-matches { display: grid; grid-template-columns: 1fr; gap: 15px; }
         .finals-match-card { background: #0f172a; padding: 15px; border-radius: 8px; border: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; }
         .f-team { flex: 1; text-align: center; }
         .f-score { font-size: 24px; font-weight: 900; color: var(--warning); padding: 0 20px; }
         .f-top1 { font-size: 13px; color: var(--primary); margin-top: 5px; }
+
         .summary-card { background: linear-gradient(135deg, #1e293b, #0f172a); padding: 30px; border-radius: 16px; border: 2px solid var(--warning); margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: var(--gold-glow); transform: scale(1); transition: 0.3s; }
         .summary-card:hover { transform: scale(1.02); }
         .rank-badge { color: black; font-size: 32px; font-weight: 900; width: 70px; height: 70px; display: flex; align-items: center; justify-content: center; border-radius: 50%; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
@@ -59,7 +72,7 @@
     <h1 style="font-size: 36px; margin-bottom: 40px;">🔴 TRỰC TIẾP GIẢI ĐẤU TFT</h1>
     
     <div id="view-setup" class="stage-container active">
-        <h2 style="color: var(--text-muted); margin-top: 100px;">Đang chờ dữ liệu từ Admin. Vui lòng chờ...</h2>
+        <h2 style="color: var(--text-muted); margin-top: 100px;">Đang thiết lập giải đấu. Vui lòng chờ...</h2>
     </div>
 
     <div id="view-swiss" class="stage-container">
@@ -100,9 +113,7 @@
 </div>
 
 <script>
-    // ----------------------------------------------------
-    // CẤU HÌNH FIREBASE 
-    // ----------------------------------------------------
+    // Khởi tạo Firebase
     const firebaseConfig = {
         apiKey: "AIzaSyBqnSskFjMQ4l8iEc8_lO8Wt3HJM_SoSK0",
         authDomain: "tft-score.firebaseapp.com",
@@ -116,7 +127,6 @@
 
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
-    // ----------------------------------------------------
 
     function renderTournamentData(data) {
         if (!data || !data.stage) return;
@@ -241,11 +251,13 @@
         }).join('');
     }
 
-    // LẮNG NGHE SỰ KIỆN TỪ FIREBASE REALTIME DATABASE
-    db.ref('tft_live_tournament').on('value', (snapshot) => {
+    // 1. Lắng nghe thay đổi realtime từ Firebase liên tục
+    db.ref('tft_live_data').on('value', (snapshot) => {
         const liveData = snapshot.val();
         if (liveData) {
             renderTournamentData(liveData);
+        } else {
+            renderTournamentData({ stage: 'setup' });
         }
     });
 </script>
