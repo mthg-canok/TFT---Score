@@ -153,7 +153,7 @@
         const createMatchHTML = (match) => {
             let t1 = data.teams.find(t => t.id === match.t1);
             let t2 = data.teams.find(t => t.id === match.t2);
-            let isDone = match.winner !== null;
+            let isDone = match.winner !== null && match.winner !== undefined;
             
             return `
             <div class="match-card ${isDone ? 'finished' : ''}">
