@@ -51,6 +51,10 @@
         .rank-badge { background: var(--warning); color: black; font-size: 24px; font-weight: bold; width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; border-radius: 50%; }
         .member-list { display: flex; gap: 10px; margin-top: 10px; font-size: 14px; color: var(--text-muted); }
         .member-list span { background: #0f172a; padding: 5px 10px; border-radius: 4px; border: 1px solid #334155; }
+
+        /* CSS CHO Ô NHẬP GIỜ */
+        .time-input-container { text-align: center; margin-bottom: 10px; }
+        .time-input { background: #1e293b; color: var(--primary); border: 1px solid #475569; padding: 5px; border-radius: 4px; font-family: monospace; font-size: 14px; width: 100px !important; display: inline-block; cursor: pointer; text-align: center; }
     </style>
 </head>
 <body>
@@ -109,9 +113,6 @@
 </div>
 
 <script>
-    // ----------------------------------------------------
-    // CẤU HÌNH FIREBASE 
-    // ----------------------------------------------------
     const firebaseConfig = {
         apiKey: "AIzaSyBqnSskFjMQ4l8iEc8_lO8Wt3HJM_SoSK0",
         authDomain: "tft-score.firebaseapp.com",
@@ -125,16 +126,16 @@
 
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
-    // ----------------------------------------------------
 
     let teams = [];
     let teamStats = {};
     let currentRound = 1;
     let finalsData = { teams: {}, matches: [] };
-    function initEmptyMatches(count) { return Array.from({length: count}, () => ({ t1: null, t2: null, s1: 0, s2: 0, winner: null })); }
+    
+    // Thêm trường "time" vào hàm khởi tạo match
+    function initEmptyMatches(count) { return Array.from({length: count}, () => ({ t1: null, t2: null, s1: 0, s2: 0, time: "", winner: null })); }
     let matchHistory = { r1: initEmptyMatches(4), r2_high: initEmptyMatches(2), r2_low: initEmptyMatches(2), r3_mid: initEmptyMatches(2) };
 
-    // HÀM ĐẨY DỮ LIỆU LÊN FIREBASE
     function pushDataLive(currentStage) {
         const liveData = {
             stage: currentStage,
@@ -147,12 +148,11 @@
         db.ref('tft_live_tournament').set(liveData);
     }
 
-    // Tự động tải lại dữ liệu nếu Admin lỡ F5
     window.onload = () => {
         db.ref('tft_live_tournament').once('value').then((snapshot) => {
             const data = snapshot.val();
             if (data && data.stage && data.stage !== 'setup') {
-                if (confirm("Hệ thống phát hiện có dữ liệu giải đấu đang diễn ra. Bạn có muốn khôi phục lại không?\n\n- Chọn OK để tiếp tục giải.\n- Chọn Cancel để tạo giải mới hoàn toàn.")) {
+                if (confirm("Hệ thống phát hiện có dữ liệu giải đấu đang diễn ra. Bạn có muốn khôi phục lại không?\n\n- Chọn OK để tiếp tục giải.\n- Chọn Cancel để xóa và tạo giải mới hoàn toàn.")) {
                     teams = data.teams || [];
                     teamStats = data.teamStats || {};
                     matchHistory = data.matchHistory || matchHistory;
@@ -171,9 +171,11 @@
                         renderSummaryAdmin();
                     }
                     return;
+                } else {
+                    db.ref('tft_live_tournament').remove().then(() => { renderSetup(); });
+                    return;
                 }
             }
-            // Mở form setup nếu tạo giải mới
             document.getElementById('setup-section').style.display = 'block';
             renderSetup();
         });
@@ -184,10 +186,18 @@
         let t2 = document.getElementById(`sel2_${roundKey}_${matchIndex}`).value;
         let s1 = parseInt(document.getElementById(`score1_${roundKey}_${matchIndex}`).value) || 0;
         let s2 = parseInt(document.getElementById(`score2_${roundKey}_${matchIndex}`).value) || 0;
+        let time = document.getElementById(`time_${roundKey}_${matchIndex}`).value;
 
         let match = matchHistory[roundKey][matchIndex];
         match.t1 = t1 ? parseInt(t1) : null; match.t2 = t2 ? parseInt(t2) : null;
-        match.s1 = s1; match.s2 = s2;
+        match.s1 = s1; match.s2 = s2; match.time = time;
+
+        match.winner = null;
+        let btn = document.getElementById(`btn_${roundKey}_${matchIndex}`);
+        if (btn) { btn.innerText = "Lưu kết quả"; btn.classList.remove("btn-saved"); }
+        let winText = document.getElementById(`winner_${roundKey}_${matchIndex}`);
+        if (winText) winText.remove(); 
+
         pushDataLive('swiss');
     }
 
@@ -197,6 +207,12 @@
         m.s2 = parseInt(document.getElementById(`fm${matchIdx}-s2`).value) || 0;
         m.top1_1 = parseInt(document.getElementById(`fm${matchIdx}-top1-1`).value) || 0;
         m.top1_2 = parseInt(document.getElementById(`fm${matchIdx}-top1-2`).value) || 0;
+        m.time = document.getElementById(`fm${matchIdx}-time`).value;
+
+        m.done = false;
+        let btn = document.getElementById(`btn-fm-${matchIdx}`);
+        if (btn) { btn.innerText = "Lưu Điểm"; btn.classList.remove("btn-saved"); }
+
         pushDataLive('finals');
     }
 
@@ -221,6 +237,11 @@
 
     function startTournament() {
         teams = [];
+        teamStats = {};
+        currentRound = 1;
+        matchHistory = { r1: initEmptyMatches(4), r2_high: initEmptyMatches(2), r2_low: initEmptyMatches(2), r3_mid: initEmptyMatches(2) };
+        finalsData = { teams: {}, matches: [] };
+
         for(let i=1; i<=8; i++) {
             let name = document.getElementById(`t-name-${i}`).value || `Đội ${i}`;
             let members = [
@@ -235,7 +256,6 @@
         
         document.getElementById('setup-section').style.display = 'none';
         document.getElementById('swiss-section').style.display = 'block';
-        currentRound = 1;
         renderBoard();
         pushDataLive('swiss');
     }
@@ -272,7 +292,8 @@
 
     function generateNextRound() {
         let currentMatches = currentRound === 1 ? matchHistory.r1 : currentRound === 2 ? [...matchHistory.r2_high, ...matchHistory.r2_low] : matchHistory.r3_mid;
-        if(!currentMatches.every(m => m.winner !== null)) return alert("Vui lòng nhập và LƯU đầy đủ kết quả vòng hiện tại!");
+        // Fix bug Undefined không cho chuyển vòng
+        if(!currentMatches.every(m => m.winner !== null && m.winner !== undefined)) return alert("Vui lòng nhập và LƯU đầy đủ kết quả vòng hiện tại!");
 
         currentMatches.forEach(m => {
             teamStats[m.winner].w += 1;
@@ -310,11 +331,14 @@
     function createMatchCard(roundKey, matchIndex, matchInfo, eligibleTeams, isActive) {
         let opt1 = buildOptions(matchInfo, eligibleTeams, isActive, true);
         let opt2 = buildOptions(matchInfo, eligibleTeams, isActive, false);
-        let isSaved = matchInfo.winner !== null;
+        let isSaved = matchInfo.winner !== null && matchInfo.winner !== undefined;
         let winHTML = isSaved ? `<div class="winner-text" id="winner_${roundKey}_${matchIndex}">👑 ${teams.find(t => t.id === matchInfo.winner).name} WIN</div>` : '';
 
         return `
         <div class="match-card ${isActive ? 'active' : 'disabled'}" id="card_${roundKey}_${matchIndex}">
+            <div class="time-input-container">
+                <input type="time" id="time_${roundKey}_${matchIndex}" class="time-input" onchange="updateMatchupPreview('${roundKey}', ${matchIndex})" value="${matchInfo.time || ''}" ${!isActive ? 'disabled' : ''} title="Giờ thi đấu">
+            </div>
             <div class="team-row">
                 <select id="sel1_${roundKey}_${matchIndex}" onchange="updateMatchupPreview('${roundKey}', ${matchIndex})" ${!isActive ? 'disabled' : ''}>${opt1}</select>
                 <input type="number" class="score-input" id="score1_${roundKey}_${matchIndex}" oninput="updateMatchupPreview('${roundKey}', ${matchIndex})" value="${matchInfo.s1 || ''}" ${!isActive ? 'disabled' : ''} placeholder="Đ">
@@ -355,12 +379,12 @@
 
         q.forEach(team => { finalsData.teams[team.id] = { id: team.id, name: team.name, points: 0, top1: 0, matchesPlayed: 0 }; });
         finalsData.matches = [
-            { id: 11, p1: q[0].id, p2: q[2].id, s1: 0, s2: 0, top1_1: 0, top1_2: 0, done: false }, 
-            { id: 12, p1: q[1].id, p2: q[3].id, s1: 0, s2: 0, top1_1: 0, top1_2: 0, done: false },
-            { id: 13, p1: q[0].id, p2: q[3].id, s1: 0, s2: 0, top1_1: 0, top1_2: 0, done: false }, 
-            { id: 14, p1: q[0].id, p2: q[1].id, s1: 0, s2: 0, top1_1: 0, top1_2: 0, done: false },
-            { id: 15, p1: q[2].id, p2: q[3].id, s1: 0, s2: 0, top1_1: 0, top1_2: 0, done: false }, 
-            { id: 16, p1: q[1].id, p2: q[2].id, s1: 0, s2: 0, top1_1: 0, top1_2: 0, done: false }
+            { id: 11, p1: q[0].id, p2: q[2].id, s1: 0, s2: 0, top1_1: 0, top1_2: 0, time: "", done: false }, 
+            { id: 12, p1: q[1].id, p2: q[3].id, s1: 0, s2: 0, top1_1: 0, top1_2: 0, time: "", done: false },
+            { id: 13, p1: q[0].id, p2: q[3].id, s1: 0, s2: 0, top1_1: 0, top1_2: 0, time: "", done: false }, 
+            { id: 14, p1: q[0].id, p2: q[1].id, s1: 0, s2: 0, top1_1: 0, top1_2: 0, time: "", done: false },
+            { id: 15, p1: q[2].id, p2: q[3].id, s1: 0, s2: 0, top1_1: 0, top1_2: 0, time: "", done: false }, 
+            { id: 16, p1: q[1].id, p2: q[2].id, s1: 0, s2: 0, top1_1: 0, top1_2: 0, time: "", done: false }
         ];
 
         document.getElementById('swiss-section').style.display = 'none';
@@ -372,7 +396,10 @@
     function renderFinalsMatches() {
         document.getElementById('finals-matches').innerHTML = finalsData.matches.map((m, idx) => `
             <div class="match-card active">
-                <div style="font-size:12px; color:gray; text-align:center; margin-bottom:10px;">Trận ${m.id}</div>
+                <div style="font-size:12px; color:gray; text-align:center; margin-bottom:10px; display:flex; justify-content:center; align-items:center; gap:10px;">
+                    <span>Trận ${m.id}</span>
+                    <input type="time" class="time-input" id="fm${idx}-time" onchange="updateFinalsPreview(${idx})" value="${m.time || ''}" title="Giờ thi đấu">
+                </div>
                 <div style="display:flex; justify-content:space-between; align-items:center; background:#1e293b; padding:10px; border-radius:6px;">
                     <div style="text-align:center; width: 30%;">
                         <strong style="font-size:14px">${finalsData.teams[m.p1].name}</strong>
@@ -402,482 +429,7 @@
         m.s2 = parseInt(document.getElementById(`fm${matchIdx}-s2`).value) || 0;
         m.top1_1 = parseInt(document.getElementById(`fm${matchIdx}-top1-1`).value) || 0;
         m.top1_2 = parseInt(document.getElementById(`fm${matchIdx}-top1-2`).value) || 0;
-        m.done = true;
-
-        Object.keys(finalsData.teams).forEach(k => { finalsData.teams[k].points = 0; finalsData.teams[k].top1 = 0; finalsData.teams[k].matchesPlayed = 0; });
-        finalsData.matches.forEach(match => {
-            if(match.done) {
-                finalsData.teams[match.p1].points += match.s1; finalsData.teams[match.p1].top1 += match.top1_1; finalsData.teams[match.p1].matchesPlayed += 1;
-                finalsData.teams[match.p2].points += match.s2; finalsData.teams[match.p2].top1 += match.top1_2; finalsData.teams[match.p2].matchesPlayed += 1;
-            }
-        });
-
-        document.getElementById(`btn-fm-${matchIdx}`).innerText = "Đã lưu ✓";
-        document.getElementById(`btn-fm-${matchIdx}`).classList.add("btn-saved");
-        renderFinalsLeaderboard();
-        pushDataLive('finals');
-    }
-
-    function renderFinalsLeaderboard() {
-        let sortedTeams = Object.values(finalsData.teams).sort((a, b) => {
-            if (b.points !== a.points) return b.points - a.points; 
-            return b.top1 - a.top1;
-        });
-        document.getElementById('finals-leaderboard').innerHTML = sortedTeams.map((t, idx) => `
-            <tr>
-                <td><strong>#${idx + 1}</strong></td>
-                <td style="font-weight: bold; font-size: 16px;">${t.name}</td>
-                <td>${t.matchesPlayed}/3</td>
-                <td style="color:var(--primary); font-weight:bold;">${t.top1}</td>
-                <td style="color:var(--warning); font-weight:bold; font-size: 18px;">${t.points}</td>
-            </tr>`).join('');
-    }
-
-    function endTournament() {
-        if(!confirm("Bạn có chắc chắn muốn chốt kết quả giải đấu?")) return;
-        document.getElementById('finals-section').style.display = 'none';
-        document.getElementById('summary-section').style.display = 'block';
-        renderSummaryAdmin();
-        pushDataLive('summary');
-    }
-
-    function renderSummaryAdmin() {
-        let sortedFinalists = Object.values(finalsData.teams).sort((a, b) => {
-            if (b.points !== a.points) return b.points - a.points;
-            return b.top1 - a.top1;
-        });
-        let top3Finalists = sortedFinalists.slice(0, 3);
-        let summaryHTML = '';
-        let rankColors = ['#fbbf24', '#94a3b8', '#b45309']; 
-
-        top3Finalists.forEach((team, index) => {
-            let originalTeam = teams.find(t => t.id === team.id);
-            let membersHTML = originalTeam.members.filter(m => m && m.trim() !== "").map(m => `<span>🧑‍💻 ${m}</span>`).join('');
-            
-            summaryHTML += `
-            <div class="summary-card">
-                <div style="display: flex; gap: 20px; align-items: center;">
-                    <div class="rank-badge" style="background: ${rankColors[index]}">#${index + 1}</div>
-                    <div>
-                        <div style="font-size: 22px; font-weight: bold; color: white;">${team.name}</div>
-                        <div class="member-list">${membersHTML}</div>
-                    </div>
-                </div>
-                <div style="text-align: right;">
-                    <div style="font-size: 13px; color: var(--primary); margin-bottom: 5px;">Số Top 1: <strong style="color:white; font-size: 16px;">${team.top1}</strong></div>
-                    <div style="font-size: 14px; color: var(--text-muted);">Tổng điểm</div>
-                    <div style="font-size: 32px; font-weight: bold; color: var(--success); line-height: 1;">${team.points}</div>
-                </div>
-            </div>`;
-        });
-        document.getElementById('summary-content').innerHTML = summaryHTML;
-    }
-</script>
-</body>
-</html><!DOCTYPE html>
-<html lang="vi">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TFT Admin - Quản Lý Giải Đấu (Firebase)</title>
-    
-    <!-- Nhúng Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
-
-    <style>
-        :root {
-            --bg-color: #0b0f19; --card-bg: #1e293b; --text-main: #f8fafc;
-            --text-muted: #64748b; --primary: #3b82f6; --success: #22c55e;
-            --danger: #ef4444; --warning: #f59e0b;
-        }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg-color); color: var(--text-main); margin: 0; padding: 20px; }
-        h1, h2, h3 { text-align: center; color: var(--warning); margin-bottom: 20px; }
-        .container { max-width: 1400px; margin: 0 auto; }
-        .group-box { background: var(--card-bg); border-radius: 8px; border: 1px solid #334155; overflow: hidden; margin-bottom: 15px; }
-        .group-header { background: #0f172a; padding: 10px; text-align: center; font-weight: bold; color: var(--primary); border-bottom: 1px solid #334155; }
-        .group-body { padding: 10px; display: flex; flex-direction: column; gap: 10px; }
-        input[type="text"], input[type="number"], select { padding: 10px; background: #0f172a; color: white; border: 1px solid #475569; border-radius: 4px; box-sizing: border-box; width: 100%; font-size: 14px; }
-        button { background: var(--primary); color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 14px; transition: 0.2s; }
-        button:hover { opacity: 0.9; }
-        button:disabled { background: var(--text-muted); cursor: not-allowed; }
-        .btn-saved { background: var(--success); }
-        .flex-center { display: flex; justify-content: center; gap: 15px; margin-bottom: 20px; }
-        .grid-setup { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; }
-        .setup-members { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
-        .swiss-layout { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; align-items: start; overflow-x: auto; }
-        .swiss-col { display: flex; flex-direction: column; gap: 15px; }
-        .match-card { background: #0f172a; padding: 12px; border-radius: 6px; border-left: 4px solid var(--text-muted); }
-        .match-card.active { border-left-color: var(--warning); }
-        .match-card.disabled { opacity: 0.5; pointer-events: none; }
-        .team-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; gap: 8px; }
-        .team-row select { flex: 1; padding: 8px; width: auto; font-size: 13px; }
-        .score-input { width: 55px !important; flex-shrink: 0; padding: 8px; text-align: center; color: var(--warning); font-weight: bold; }
-        .top1-input { width: 50px !important; padding: 4px; text-align: center; font-size: 12px; border-color: var(--primary); color: white;}
-        .winner-text { color: var(--success); font-weight: bold; font-size: 13px; text-align: center; margin-top: 8px; }
-        .vs-divider { text-align: center; font-size: 11px; color: var(--text-muted); margin: 2px 0; }
-        .result-box { background: rgba(34, 197, 94, 0.1); border: 1px solid var(--success); border-radius: 6px; padding: 10px; margin-bottom: 15px; }
-        .result-box.eliminated { background: rgba(239, 68, 68, 0.1); border-color: var(--danger); }
-        .team-tag { background: #1e293b; padding: 6px; text-align: center; border-radius: 4px; margin-bottom: 5px; border-left: 3px solid; }
-        .table-finals { width: 100%; border-collapse: collapse; margin-bottom: 30px; text-align: center; background: var(--card-bg); border-radius: 8px; overflow: hidden; }
-        .table-finals th, .table-finals td { padding: 12px; border: 1px solid #334155; }
-        .table-finals th { background: #0f172a; color: var(--warning); }
-        .grid-finals { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 15px; }
-        .summary-card { background: #1e293b; padding: 20px; border-radius: 8px; border: 1px solid var(--warning); margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; }
-        .rank-badge { background: var(--warning); color: black; font-size: 24px; font-weight: bold; width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; border-radius: 50%; }
-        .member-list { display: flex; gap: 10px; margin-top: 10px; font-size: 14px; color: var(--text-muted); }
-        .member-list span { background: #0f172a; padding: 5px 10px; border-radius: 4px; border: 1px solid #334155; }
-    </style>
-</head>
-<body>
-
-<div class="container">
-    <h1 id="main-title">Quản Lý Giải Đấu TFT 4v4 (Firebase Live)</h1>
-    
-    <div id="setup-section" style="display: none;">
-        <h2>Nhập Thông Tin Đội & Thành Viên</h2>
-        <div class="grid-setup" id="setup-grid"></div>
-        <div class="flex-center" style="margin-top: 20px;">
-            <button onclick="startTournament()" style="font-size: 18px; padding: 15px 30px; background: var(--success);">Lưu & Bắt Đầu Giải Đấu</button>
-        </div>
-    </div>
-
-    <div id="swiss-section" style="display: none;">
-        <div class="flex-center">
-            <button id="btn-next-round" onclick="generateNextRound()" style="font-size: 16px; padding: 12px 24px;">Chốt Vòng Hiện Tại & Mở Vòng Tiếp</button>
-            <button id="btn-start-finals" style="background: var(--warning); color: black; display: none; font-size: 16px; padding: 12px 24px;" onclick="startFinals()">👉 Bắt đầu Chung Kết</button>
-        </div>
-        <div class="swiss-layout">
-            <div class="swiss-col" id="col-r1"></div>
-            <div class="swiss-col" id="col-r2"></div>
-            <div class="swiss-col" id="col-r3"></div>
-            <div class="swiss-col" id="col-result"></div>
-        </div>
-    </div>
-
-    <div id="finals-section" style="display: none;">
-        <h2 style="color: var(--success);">VÒNG CHUNG KẾT (ROUND ROBIN)</h2>
-        <table class="table-finals">
-            <thead>
-                <tr>
-                    <th>Hạng</th>
-                    <th>Tên Đội</th>
-                    <th>Số trận</th>
-                    <th style="color: var(--primary);">Số Top 1</th>
-                    <th>Tổng Điểm</th>
-                </tr>
-            </thead>
-            <tbody id="finals-leaderboard"></tbody>
-        </table>
-        
-        <h3>Lịch Thi Đấu</h3>
-        <div id="finals-matches" class="grid-finals"></div>
-        
-        <div class="flex-center" style="margin-top: 40px;">
-            <button onclick="endTournament()" style="font-size: 18px; padding: 15px 30px; background: var(--danger);">🏆 CHỐT KẾT QUẢ GIẢI ĐẤU</button>
-        </div>
-    </div>
-
-    <div id="summary-section" style="display: none;">
-        <h2 style="color: var(--warning); font-size: 30px;">🏆 KẾT QUẢ CHUNG CUỘC 🏆</h2>
-        <div id="summary-content" style="max-width: 800px; margin: 0 auto;"></div>
-    </div>
-</div>
-
-<script>
-    // ----------------------------------------------------
-    // CẤU HÌNH FIREBASE 
-    // ----------------------------------------------------
-    const firebaseConfig = {
-        apiKey: "AIzaSyBqnSskFjMQ4l8iEc8_lO8Wt3HJM_SoSK0",
-        authDomain: "tft-score.firebaseapp.com",
-        databaseURL: "https://tft-score-default-rtdb.firebaseio.com",
-        projectId: "tft-score",
-        storageBucket: "tft-score.firebasestorage.app",
-        messagingSenderId: "184916652079",
-        appId: "1:184916652079:web:9f10bba4009faf9b8716da",
-        measurementId: "G-PQ8X5TK37R"
-    };
-
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
-    // ----------------------------------------------------
-
-    let teams = [];
-    let teamStats = {};
-    let currentRound = 1;
-    let finalsData = { teams: {}, matches: [] };
-    function initEmptyMatches(count) { return Array.from({length: count}, () => ({ t1: null, t2: null, s1: 0, s2: 0, winner: null })); }
-    let matchHistory = { r1: initEmptyMatches(4), r2_high: initEmptyMatches(2), r2_low: initEmptyMatches(2), r3_mid: initEmptyMatches(2) };
-
-    // HÀM ĐẨY DỮ LIỆU LÊN FIREBASE
-    function pushDataLive(currentStage) {
-        const liveData = {
-            stage: currentStage,
-            currentRound: currentRound,
-            teams: teams,
-            teamStats: teamStats,
-            matchHistory: matchHistory,
-            finalsData: finalsData
-        };
-        db.ref('tft_live_tournament').set(liveData);
-    }
-
-    // Tự động tải lại dữ liệu nếu Admin lỡ F5
-    window.onload = () => {
-        db.ref('tft_live_tournament').once('value').then((snapshot) => {
-            const data = snapshot.val();
-            if (data && data.stage && data.stage !== 'setup') {
-                if (confirm("Hệ thống phát hiện có dữ liệu giải đấu đang diễn ra. Bạn có muốn khôi phục lại không?\n\n- Chọn OK để tiếp tục giải.\n- Chọn Cancel để tạo giải mới hoàn toàn.")) {
-                    teams = data.teams || [];
-                    teamStats = data.teamStats || {};
-                    matchHistory = data.matchHistory || matchHistory;
-                    finalsData = data.finalsData || finalsData;
-                    currentRound = data.currentRound || 1;
-                    
-                    if(data.stage === 'swiss') {
-                        document.getElementById('swiss-section').style.display = 'block';
-                        renderBoard();
-                    } else if(data.stage === 'finals') {
-                        document.getElementById('finals-section').style.display = 'block';
-                        renderFinalsMatches();
-                        renderFinalsLeaderboard();
-                    } else if(data.stage === 'summary') {
-                        document.getElementById('summary-section').style.display = 'block';
-                        renderSummaryAdmin();
-                    }
-                    return;
-                }
-            }
-            // Mở form setup nếu tạo giải mới
-            document.getElementById('setup-section').style.display = 'block';
-            renderSetup();
-        });
-    };
-
-    function updateMatchupPreview(roundKey, matchIndex) {
-        let t1 = document.getElementById(`sel1_${roundKey}_${matchIndex}`).value;
-        let t2 = document.getElementById(`sel2_${roundKey}_${matchIndex}`).value;
-        let s1 = parseInt(document.getElementById(`score1_${roundKey}_${matchIndex}`).value) || 0;
-        let s2 = parseInt(document.getElementById(`score2_${roundKey}_${matchIndex}`).value) || 0;
-
-        let match = matchHistory[roundKey][matchIndex];
-        match.t1 = t1 ? parseInt(t1) : null; match.t2 = t2 ? parseInt(t2) : null;
-        match.s1 = s1; match.s2 = s2;
-        pushDataLive('swiss');
-    }
-
-    function updateFinalsPreview(matchIdx) {
-        let m = finalsData.matches[matchIdx];
-        m.s1 = parseInt(document.getElementById(`fm${matchIdx}-s1`).value) || 0;
-        m.s2 = parseInt(document.getElementById(`fm${matchIdx}-s2`).value) || 0;
-        m.top1_1 = parseInt(document.getElementById(`fm${matchIdx}-top1-1`).value) || 0;
-        m.top1_2 = parseInt(document.getElementById(`fm${matchIdx}-top1-2`).value) || 0;
-        pushDataLive('finals');
-    }
-
-    function renderSetup() {
-        let setupGrid = document.getElementById('setup-grid');
-        let html = '';
-        for(let i=1; i<=8; i++) {
-            html += `
-            <div class="group-box" style="padding: 15px;">
-                <input type="text" id="t-name-${i}" placeholder="Tên Đội ${i}" value="Đội ${i}" style="font-weight: bold; color: var(--warning); font-size: 16px;">
-                <div class="setup-members">
-                    <input type="text" id="t${i}-m1" placeholder="Thành viên 1">
-                    <input type="text" id="t${i}-m2" placeholder="Thành viên 2">
-                    <input type="text" id="t${i}-m3" placeholder="Thành viên 3">
-                    <input type="text" id="t${i}-m4" placeholder="Thành viên 4">
-                </div>
-            </div>`;
-        }
-        setupGrid.innerHTML = html;
-        pushDataLive('setup');
-    }
-
-    function startTournament() {
-        teams = [];
-        for(let i=1; i<=8; i++) {
-            let name = document.getElementById(`t-name-${i}`).value || `Đội ${i}`;
-            let members = [
-                document.getElementById(`t${i}-m1`).value,
-                document.getElementById(`t${i}-m2`).value,
-                document.getElementById(`t${i}-m3`).value,
-                document.getElementById(`t${i}-m4`).value,
-            ];
-            teams.push({ id: i, name: name, members: members });
-            teamStats[i] = { w: 0, l: 0, status: 'playing' };
-        }
-        
-        document.getElementById('setup-section').style.display = 'none';
-        document.getElementById('swiss-section').style.display = 'block';
-        currentRound = 1;
-        renderBoard();
-        pushDataLive('swiss');
-    }
-
-    function getEligibleTeams(reqW, reqL) { return teams.filter(t => teamStats[t.id].w === reqW && teamStats[t.id].l === reqL && teamStats[t.id].status === 'playing'); }
-
-    function saveMatchResult(roundKey, matchIndex) {
-        let t1 = document.getElementById(`sel1_${roundKey}_${matchIndex}`).value;
-        let t2 = document.getElementById(`sel2_${roundKey}_${matchIndex}`).value;
-        let s1 = parseInt(document.getElementById(`score1_${roundKey}_${matchIndex}`).value) || 0;
-        let s2 = parseInt(document.getElementById(`score2_${roundKey}_${matchIndex}`).value) || 0;
-
-        if(!t1 || !t2 || t1 === t2) return alert("Vui lòng chọn 2 đội khác nhau!");
-        if(s1 === s2) return alert("Vòng Bảng: Điểm 2 đội không thể bằng nhau!");
-
-        let match = matchHistory[roundKey][matchIndex];
-        match.t1 = parseInt(t1); match.t2 = parseInt(t2); match.s1 = s1; match.s2 = s2;
-        match.winner = s1 > s2 ? match.t1 : match.t2;
-
-        document.getElementById(`btn_${roundKey}_${matchIndex}`).innerText = "Đã lưu ✓";
-        document.getElementById(`btn_${roundKey}_${matchIndex}`).classList.add("btn-saved");
-        
-        let card = document.getElementById(`card_${roundKey}_${matchIndex}`);
-        let winnerDiv = document.getElementById(`winner_${roundKey}_${matchIndex}`);
-        if (!winnerDiv) {
-            winnerDiv = document.createElement('div');
-            winnerDiv.id = `winner_${roundKey}_${matchIndex}`;
-            winnerDiv.className = 'winner-text';
-            card.appendChild(winnerDiv);
-        }
-        winnerDiv.innerHTML = `👑 ${teams.find(t => t.id === match.winner).name} WIN`;
-        pushDataLive('swiss');
-    }
-
-    function generateNextRound() {
-        let currentMatches = currentRound === 1 ? matchHistory.r1 : currentRound === 2 ? [...matchHistory.r2_high, ...matchHistory.r2_low] : matchHistory.r3_mid;
-        if(!currentMatches.every(m => m.winner !== null)) return alert("Vui lòng nhập và LƯU đầy đủ kết quả vòng hiện tại!");
-
-        currentMatches.forEach(m => {
-            teamStats[m.winner].w += 1;
-            teamStats[m.winner === m.t1 ? m.t2 : m.t1].l += 1;
-        });
-
-        if (currentRound === 1) currentRound = 2;
-        else if (currentRound === 2) {
-            teams.forEach(t => { if(teamStats[t.id].w === 2) teamStats[t.id].status = 'qualified'; if(teamStats[t.id].l === 2) teamStats[t.id].status = 'eliminated'; });
-            currentRound = 3;
-            document.getElementById('btn-next-round').innerText = "Chốt Vòng Bảng";
-        }
-        else if (currentRound === 3) {
-            teams.forEach(t => { if(teamStats[t.id].w === 2) teamStats[t.id].status = 'qualified'; if(teamStats[t.id].l === 2) teamStats[t.id].status = 'eliminated'; });
-            document.getElementById('btn-next-round').style.display = 'none';
-            document.getElementById('btn-start-finals').style.display = 'block';
-        }
-        renderBoard();
-        pushDataLive('swiss');
-    }
-
-    function buildOptions(matchInfo, eligibleTeams, isActive, isTeam1) {
-        let options = `<option value="">-- Chọn đội --</option>`;
-        let selectedId = isTeam1 ? matchInfo.t1 : matchInfo.t2;
-        teams.forEach(t => {
-            let isEligible = eligibleTeams.some(et => et.id === t.id);
-            let isSelected = selectedId === t.id;
-            if (!isActive || isEligible || isSelected) {
-                options += `<option value="${t.id}" ${isSelected ? 'selected' : ''}>[${teamStats[t.id].w}-${teamStats[t.id].l}] ${t.name}</option>`;
-            }
-        });
-        return options;
-    }
-
-    function createMatchCard(roundKey, matchIndex, matchInfo, eligibleTeams, isActive) {
-        let opt1 = buildOptions(matchInfo, eligibleTeams, isActive, true);
-        let opt2 = buildOptions(matchInfo, eligibleTeams, isActive, false);
-        let isSaved = matchInfo.winner !== null;
-        let winHTML = isSaved ? `<div class="winner-text" id="winner_${roundKey}_${matchIndex}">👑 ${teams.find(t => t.id === matchInfo.winner).name} WIN</div>` : '';
-
-        return `
-        <div class="match-card ${isActive ? 'active' : 'disabled'}" id="card_${roundKey}_${matchIndex}">
-            <div class="team-row">
-                <select id="sel1_${roundKey}_${matchIndex}" onchange="updateMatchupPreview('${roundKey}', ${matchIndex})" ${!isActive ? 'disabled' : ''}>${opt1}</select>
-                <input type="number" class="score-input" id="score1_${roundKey}_${matchIndex}" oninput="updateMatchupPreview('${roundKey}', ${matchIndex})" value="${matchInfo.s1 || ''}" ${!isActive ? 'disabled' : ''} placeholder="Đ">
-            </div>
-            <div class="vs-divider">VS</div>
-            <div class="team-row">
-                <select id="sel2_${roundKey}_${matchIndex}" onchange="updateMatchupPreview('${roundKey}', ${matchIndex})" ${!isActive ? 'disabled' : ''}>${opt2}</select>
-                <input type="number" class="score-input" id="score2_${roundKey}_${matchIndex}" oninput="updateMatchupPreview('${roundKey}', ${matchIndex})" value="${matchInfo.s2 || ''}" ${!isActive ? 'disabled' : ''} placeholder="Đ">
-            </div>
-            <button id="btn_${roundKey}_${matchIndex}" class="${isSaved ? 'btn-saved' : ''}" onclick="saveMatchResult('${roundKey}', ${matchIndex})" ${!isActive ? 'disabled' : ''} style="width: 100%; margin-top: 5px;">${isSaved ? 'Đã lưu ✓' : 'Lưu kết quả'}</button>
-            ${winHTML}
-        </div>`;
-    }
-
-    function createGroupHTML(title, roundKey, matchArray, reqW, reqL, isActive) {
-        return `<div class="group-box"><div class="group-header">${title}</div><div class="group-body">${matchArray.map((m, i) => createMatchCard(roundKey, i, m, getEligibleTeams(reqW, reqL), isActive)).join('')}</div></div>`;
-    }
-
-    function renderBoard() {
-        document.getElementById('col-r1').innerHTML = createGroupHTML("GROUP 0-0", 'r1', matchHistory.r1, 0, 0, currentRound === 1);
-        document.getElementById('col-r2').innerHTML = createGroupHTML("GROUP 1-0", 'r2_high', matchHistory.r2_high, 1, 0, currentRound === 2) + createGroupHTML("GROUP 0-1", 'r2_low', matchHistory.r2_low, 0, 1, currentRound === 2);
-        document.getElementById('col-r3').innerHTML = createGroupHTML("GROUP 1-1", 'r3_mid', matchHistory.r3_mid, 1, 1, currentRound === 3);
-
-        let qT = teams.filter(t => teamStats[t.id].status === 'qualified'), eT = teams.filter(t => teamStats[t.id].status === 'eliminated');
-        document.getElementById('col-result').innerHTML = `
-            <div class="result-box"><div style="font-weight:bold;color:var(--success);text-align:center;margin-bottom:10px;">✨ QUALIFIED</div>${qT.map(t => `<div class="team-tag" style="border-color:var(--success)">${t.name}</div>`).join('')}</div>
-            <div class="result-box eliminated"><div style="font-weight:bold;color:var(--danger);text-align:center;margin-bottom:10px;">❌ ELIMINATED</div>${eT.map(t => `<div class="team-tag" style="border-color:var(--danger)">${t.name}</div>`).join('')}</div>`;
-        
-        if(currentRound > 2 && teams.every(t => teamStats[t.id].status !== 'playing')) {
-            document.getElementById('btn-next-round').style.display = 'none';
-            document.getElementById('btn-start-finals').style.display = 'block';
-        }
-    }
-
-    function startFinals() {
-        let q = teams.filter(t => teamStats[t.id].status === 'qualified');
-        if(q.length !== 4) return alert("Lỗi: Chưa đủ 4 đội!");
-
-        q.forEach(team => { finalsData.teams[team.id] = { id: team.id, name: team.name, points: 0, top1: 0, matchesPlayed: 0 }; });
-        finalsData.matches = [
-            { id: 11, p1: q[0].id, p2: q[2].id, s1: 0, s2: 0, top1_1: 0, top1_2: 0, done: false }, 
-            { id: 12, p1: q[1].id, p2: q[3].id, s1: 0, s2: 0, top1_1: 0, top1_2: 0, done: false },
-            { id: 13, p1: q[0].id, p2: q[3].id, s1: 0, s2: 0, top1_1: 0, top1_2: 0, done: false }, 
-            { id: 14, p1: q[0].id, p2: q[1].id, s1: 0, s2: 0, top1_1: 0, top1_2: 0, done: false },
-            { id: 15, p1: q[2].id, p2: q[3].id, s1: 0, s2: 0, top1_1: 0, top1_2: 0, done: false }, 
-            { id: 16, p1: q[1].id, p2: q[2].id, s1: 0, s2: 0, top1_1: 0, top1_2: 0, done: false }
-        ];
-
-        document.getElementById('swiss-section').style.display = 'none';
-        document.getElementById('finals-section').style.display = 'block';
-        renderFinalsMatches(); renderFinalsLeaderboard();
-        pushDataLive('finals');
-    }
-
-    function renderFinalsMatches() {
-        document.getElementById('finals-matches').innerHTML = finalsData.matches.map((m, idx) => `
-            <div class="match-card active">
-                <div style="font-size:12px; color:gray; text-align:center; margin-bottom:10px;">Trận ${m.id}</div>
-                <div style="display:flex; justify-content:space-between; align-items:center; background:#1e293b; padding:10px; border-radius:6px;">
-                    <div style="text-align:center; width: 30%;">
-                        <strong style="font-size:14px">${finalsData.teams[m.p1].name}</strong>
-                        <div style="margin-top:5px; font-size:12px; color:var(--primary);">
-                            Top 1: <input type="number" class="top1-input" id="fm${idx}-top1-1" oninput="updateFinalsPreview(${idx})" value="${m.top1_1 || ''}">
-                        </div>
-                    </div>
-                    <div style="display:flex; gap:5px; align-items:center;">
-                        <input type="number" class="score-input" id="fm${idx}-s1" oninput="updateFinalsPreview(${idx})" value="${m.s1 || ''}" style="width: 50px !important;">
-                        <span>-</span>
-                        <input type="number" class="score-input" id="fm${idx}-s2" oninput="updateFinalsPreview(${idx})" value="${m.s2 || ''}" style="width: 50px !important;">
-                    </div>
-                    <div style="text-align:center; width: 30%;">
-                        <strong style="font-size:14px">${finalsData.teams[m.p2].name}</strong>
-                        <div style="margin-top:5px; font-size:12px; color:var(--primary);">
-                            Top 1: <input type="number" class="top1-input" id="fm${idx}-top1-2" oninput="updateFinalsPreview(${idx})" value="${m.top1_2 || ''}">
-                        </div>
-                    </div>
-                </div>
-                <button id="btn-fm-${idx}" class="${m.done ? 'btn-saved' : ''}" style="margin-top: 10px; width: 100%;" onclick="updateFinalsScore(${idx})">${m.done ? 'Đã lưu ✓' : 'Lưu Điểm'}</button>
-            </div>`).join('');
-    }
-
-    function updateFinalsScore(matchIdx) {
-        let m = finalsData.matches[matchIdx];
-        m.s1 = parseInt(document.getElementById(`fm${matchIdx}-s1`).value) || 0;
-        m.s2 = parseInt(document.getElementById(`fm${matchIdx}-s2`).value) || 0;
-        m.top1_1 = parseInt(document.getElementById(`fm${matchIdx}-top1-1`).value) || 0;
-        m.top1_2 = parseInt(document.getElementById(`fm${matchIdx}-top1-2`).value) || 0;
+        m.time = document.getElementById(`fm${matchIdx}-time`).value;
         m.done = true;
 
         Object.keys(finalsData.teams).forEach(k => { finalsData.teams[k].points = 0; finalsData.teams[k].top1 = 0; finalsData.teams[k].matchesPlayed = 0; });
