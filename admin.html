@@ -51,10 +51,6 @@
         .rank-badge { background: var(--warning); color: black; font-size: 24px; font-weight: bold; width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; border-radius: 50%; }
         .member-list { display: flex; gap: 10px; margin-top: 10px; font-size: 14px; color: var(--text-muted); }
         .member-list span { background: #0f172a; padding: 5px 10px; border-radius: 4px; border: 1px solid #334155; }
-        
-        /* CSS CHO Ô NHẬP GIỜ */
-        .time-input-container { text-align: center; margin-bottom: 10px; }
-        .time-input { background: #1e293b; color: var(--primary); border: 1px solid #475569; padding: 5px; border-radius: 4px; font-family: monospace; font-size: 14px; width: 100px !important; display: inline-block; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -113,6 +109,9 @@
 </div>
 
 <script>
+    // ----------------------------------------------------
+    // CẤU HÌNH FIREBASE 
+    // ----------------------------------------------------
     const firebaseConfig = {
         apiKey: "AIzaSyBqnSskFjMQ4l8iEc8_lO8Wt3HJM_SoSK0",
         authDomain: "tft-score.firebaseapp.com",
@@ -126,28 +125,40 @@
 
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
+    // ----------------------------------------------------
 
     let teams = [];
     let teamStats = {};
     let currentRound = 1;
     let finalsData = { teams: {}, matches: [] };
-
-    // Thêm time vào data khởi tạo
-    function initEmptyMatches(count) { return Array.from({length: count}, () => ({ t1: null, t2: null, s1: 0, s2: 0, time: "", winner: null })); }
+    function initEmptyMatches(count) { return Array.from({length: count}, () => ({ t1: null, t2: null, s1: 0, s2: 0, winner: null })); }
     let matchHistory = { r1: initEmptyMatches(4), r2_high: initEmptyMatches(2), r2_low: initEmptyMatches(2), r3_mid: initEmptyMatches(2) };
 
+    // HÀM ĐẨY DỮ LIỆU LÊN FIREBASE
+    function pushDataLive(currentStage) {
+        const liveData = {
+            stage: currentStage,
+            currentRound: currentRound,
+            teams: teams,
+            teamStats: teamStats,
+            matchHistory: matchHistory,
+            finalsData: finalsData
+        };
+        db.ref('tft_live_tournament').set(liveData);
+    }
+
+    // Tự động tải lại dữ liệu nếu Admin lỡ F5
     window.onload = () => {
-        db.ref('tft_live_data').once('value').then((snapshot) => {
+        db.ref('tft_live_tournament').once('value').then((snapshot) => {
             const data = snapshot.val();
             if (data && data.stage && data.stage !== 'setup') {
-                if (confirm("Hệ thống tìm thấy giải đấu đang diễn ra. Bạn có muốn khôi phục không?")) {
+                if (confirm("Hệ thống phát hiện có dữ liệu giải đấu đang diễn ra. Bạn có muốn khôi phục lại không?\n\n- Chọn OK để tiếp tục giải.\n- Chọn Cancel để tạo giải mới hoàn toàn.")) {
                     teams = data.teams || [];
                     teamStats = data.teamStats || {};
                     matchHistory = data.matchHistory || matchHistory;
                     finalsData = data.finalsData || finalsData;
                     currentRound = data.currentRound || 1;
                     
-                    document.getElementById('setup-section').style.display = 'none';
                     if(data.stage === 'swiss') {
                         document.getElementById('swiss-section').style.display = 'block';
                         renderBoard();
@@ -159,52 +170,24 @@
                         document.getElementById('summary-section').style.display = 'block';
                         renderSummaryAdmin();
                     }
-                } else {
-                    db.ref('tft_live_data').remove().then(() => {
-                        renderSetup();
-                    });
+                    return;
                 }
-            } else {
-                renderSetup();
             }
+            // Mở form setup nếu tạo giải mới
+            document.getElementById('setup-section').style.display = 'block';
+            renderSetup();
         });
     };
-
-    function pushDataLive(currentStage) {
-        const liveData = {
-            stage: currentStage,
-            currentRound: currentRound,
-            teams: teams,
-            teamStats: teamStats,
-            matchHistory: matchHistory,
-            finalsData: finalsData
-        };
-        db.ref('tft_live_data').set(liveData);
-    }
 
     function updateMatchupPreview(roundKey, matchIndex) {
         let t1 = document.getElementById(`sel1_${roundKey}_${matchIndex}`).value;
         let t2 = document.getElementById(`sel2_${roundKey}_${matchIndex}`).value;
         let s1 = parseInt(document.getElementById(`score1_${roundKey}_${matchIndex}`).value) || 0;
         let s2 = parseInt(document.getElementById(`score2_${roundKey}_${matchIndex}`).value) || 0;
-        let time = document.getElementById(`time_${roundKey}_${matchIndex}`).value;
 
         let match = matchHistory[roundKey][matchIndex];
-        match.t1 = t1 ? parseInt(t1) : null;
-        match.t2 = t2 ? parseInt(t2) : null;
-        match.s1 = s1;
-        match.s2 = s2;
-        match.time = time; // Lưu giờ
-
-        match.winner = null;
-        let btn = document.getElementById(`btn_${roundKey}_${matchIndex}`);
-        if (btn) {
-            btn.innerText = "Lưu kết quả";
-            btn.classList.remove("btn-saved");
-        }
-        let winText = document.getElementById(`winner_${roundKey}_${matchIndex}`);
-        if (winText) winText.remove(); 
-
+        match.t1 = t1 ? parseInt(t1) : null; match.t2 = t2 ? parseInt(t2) : null;
+        match.s1 = s1; match.s2 = s2;
         pushDataLive('swiss');
     }
 
@@ -214,19 +197,10 @@
         m.s2 = parseInt(document.getElementById(`fm${matchIdx}-s2`).value) || 0;
         m.top1_1 = parseInt(document.getElementById(`fm${matchIdx}-top1-1`).value) || 0;
         m.top1_2 = parseInt(document.getElementById(`fm${matchIdx}-top1-2`).value) || 0;
-        m.time = document.getElementById(`fm${matchIdx}-time`).value; // Lưu giờ
-        
-        m.done = false;
-        let btn = document.getElementById(`btn-fm-${matchIdx}`);
-        if (btn) {
-            btn.innerText = "Lưu Điểm";
-            btn.classList.remove("btn-saved");
-        }
         pushDataLive('finals');
     }
 
     function renderSetup() {
-        document.getElementById('setup-section').style.display = 'block';
         let setupGrid = document.getElementById('setup-grid');
         let html = '';
         for(let i=1; i<=8; i++) {
@@ -247,11 +221,6 @@
 
     function startTournament() {
         teams = [];
-        teamStats = {};
-        currentRound = 1;
-        matchHistory = { r1: initEmptyMatches(4), r2_high: initEmptyMatches(2), r2_low: initEmptyMatches(2), r3_mid: initEmptyMatches(2) };
-        finalsData = { teams: {}, matches: [] };
-
         for(let i=1; i<=8; i++) {
             let name = document.getElementById(`t-name-${i}`).value || `Đội ${i}`;
             let members = [
@@ -266,6 +235,7 @@
         
         document.getElementById('setup-section').style.display = 'none';
         document.getElementById('swiss-section').style.display = 'block';
+        currentRound = 1;
         renderBoard();
         pushDataLive('swiss');
     }
@@ -302,8 +272,7 @@
 
     function generateNextRound() {
         let currentMatches = currentRound === 1 ? matchHistory.r1 : currentRound === 2 ? [...matchHistory.r2_high, ...matchHistory.r2_low] : matchHistory.r3_mid;
-        // Chặn lỗi Undefined
-        if(!currentMatches.every(m => m.winner !== null && m.winner !== undefined)) return alert("Vui lòng nhập và LƯU đầy đủ kết quả vòng hiện tại!");
+        if(!currentMatches.every(m => m.winner !== null)) return alert("Vui lòng nhập và LƯU đầy đủ kết quả vòng hiện tại!");
 
         currentMatches.forEach(m => {
             teamStats[m.winner].w += 1;
@@ -341,14 +310,11 @@
     function createMatchCard(roundKey, matchIndex, matchInfo, eligibleTeams, isActive) {
         let opt1 = buildOptions(matchInfo, eligibleTeams, isActive, true);
         let opt2 = buildOptions(matchInfo, eligibleTeams, isActive, false);
-        let isSaved = matchInfo.winner !== null && matchInfo.winner !== undefined;
+        let isSaved = matchInfo.winner !== null;
         let winHTML = isSaved ? `<div class="winner-text" id="winner_${roundKey}_${matchIndex}">👑 ${teams.find(t => t.id === matchInfo.winner).name} WIN</div>` : '';
 
         return `
         <div class="match-card ${isActive ? 'active' : 'disabled'}" id="card_${roundKey}_${matchIndex}">
-            <div class="time-input-container">
-                <input type="time" id="time_${roundKey}_${matchIndex}" class="time-input" onchange="updateMatchupPreview('${roundKey}', ${matchIndex})" value="${matchInfo.time || ''}" ${!isActive ? 'disabled' : ''} title="Giờ thi đấu">
-            </div>
             <div class="team-row">
                 <select id="sel1_${roundKey}_${matchIndex}" onchange="updateMatchupPreview('${roundKey}', ${matchIndex})" ${!isActive ? 'disabled' : ''}>${opt1}</select>
                 <input type="number" class="score-input" id="score1_${roundKey}_${matchIndex}" oninput="updateMatchupPreview('${roundKey}', ${matchIndex})" value="${matchInfo.s1 || ''}" ${!isActive ? 'disabled' : ''} placeholder="Đ">
@@ -376,6 +342,11 @@
         document.getElementById('col-result').innerHTML = `
             <div class="result-box"><div style="font-weight:bold;color:var(--success);text-align:center;margin-bottom:10px;">✨ QUALIFIED</div>${qT.map(t => `<div class="team-tag" style="border-color:var(--success)">${t.name}</div>`).join('')}</div>
             <div class="result-box eliminated"><div style="font-weight:bold;color:var(--danger);text-align:center;margin-bottom:10px;">❌ ELIMINATED</div>${eT.map(t => `<div class="team-tag" style="border-color:var(--danger)">${t.name}</div>`).join('')}</div>`;
+        
+        if(currentRound > 2 && teams.every(t => teamStats[t.id].status !== 'playing')) {
+            document.getElementById('btn-next-round').style.display = 'none';
+            document.getElementById('btn-start-finals').style.display = 'block';
+        }
     }
 
     function startFinals() {
@@ -383,19 +354,17 @@
         if(q.length !== 4) return alert("Lỗi: Chưa đủ 4 đội!");
 
         q.forEach(team => { finalsData.teams[team.id] = { id: team.id, name: team.name, points: 0, top1: 0, matchesPlayed: 0 }; });
-
         finalsData.matches = [
-            { id: 11, p1: q[0].id, p2: q[2].id, s1: 0, s2: 0, top1_1: 0, top1_2: 0, time: "", done: false }, 
-            { id: 12, p1: q[1].id, p2: q[3].id, s1: 0, s2: 0, top1_1: 0, top1_2: 0, time: "", done: false },
-            { id: 13, p1: q[0].id, p2: q[3].id, s1: 0, s2: 0, top1_1: 0, top1_2: 0, time: "", done: false }, 
-            { id: 14, p1: q[0].id, p2: q[1].id, s1: 0, s2: 0, top1_1: 0, top1_2: 0, time: "", done: false },
-            { id: 15, p1: q[2].id, p2: q[3].id, s1: 0, s2: 0, top1_1: 0, top1_2: 0, time: "", done: false }, 
-            { id: 16, p1: q[1].id, p2: q[2].id, s1: 0, s2: 0, top1_1: 0, top1_2: 0, time: "", done: false }
+            { id: 11, p1: q[0].id, p2: q[2].id, s1: 0, s2: 0, top1_1: 0, top1_2: 0, done: false }, 
+            { id: 12, p1: q[1].id, p2: q[3].id, s1: 0, s2: 0, top1_1: 0, top1_2: 0, done: false },
+            { id: 13, p1: q[0].id, p2: q[3].id, s1: 0, s2: 0, top1_1: 0, top1_2: 0, done: false }, 
+            { id: 14, p1: q[0].id, p2: q[1].id, s1: 0, s2: 0, top1_1: 0, top1_2: 0, done: false },
+            { id: 15, p1: q[2].id, p2: q[3].id, s1: 0, s2: 0, top1_1: 0, top1_2: 0, done: false }, 
+            { id: 16, p1: q[1].id, p2: q[2].id, s1: 0, s2: 0, top1_1: 0, top1_2: 0, done: false }
         ];
 
         document.getElementById('swiss-section').style.display = 'none';
         document.getElementById('finals-section').style.display = 'block';
-        
         renderFinalsMatches(); renderFinalsLeaderboard();
         pushDataLive('finals');
     }
@@ -403,10 +372,7 @@
     function renderFinalsMatches() {
         document.getElementById('finals-matches').innerHTML = finalsData.matches.map((m, idx) => `
             <div class="match-card active">
-                <div style="font-size:12px; color:gray; text-align:center; margin-bottom:10px; display:flex; justify-content:center; align-items:center; gap:10px;">
-                    <span>Trận ${m.id}</span>
-                    <input type="time" class="time-input" id="fm${idx}-time" onchange="updateFinalsPreview(${idx})" value="${m.time || ''}" title="Giờ thi đấu">
-                </div>
+                <div style="font-size:12px; color:gray; text-align:center; margin-bottom:10px;">Trận ${m.id}</div>
                 <div style="display:flex; justify-content:space-between; align-items:center; background:#1e293b; padding:10px; border-radius:6px;">
                     <div style="text-align:center; width: 30%;">
                         <strong style="font-size:14px">${finalsData.teams[m.p1].name}</strong>
@@ -436,11 +402,9 @@
         m.s2 = parseInt(document.getElementById(`fm${matchIdx}-s2`).value) || 0;
         m.top1_1 = parseInt(document.getElementById(`fm${matchIdx}-top1-1`).value) || 0;
         m.top1_2 = parseInt(document.getElementById(`fm${matchIdx}-top1-2`).value) || 0;
-        m.time = document.getElementById(`fm${matchIdx}-time`).value;
         m.done = true;
 
         Object.keys(finalsData.teams).forEach(k => { finalsData.teams[k].points = 0; finalsData.teams[k].top1 = 0; finalsData.teams[k].matchesPlayed = 0; });
-
         finalsData.matches.forEach(match => {
             if(match.done) {
                 finalsData.teams[match.p1].points += match.s1; finalsData.teams[match.p1].top1 += match.top1_1; finalsData.teams[match.p1].matchesPlayed += 1;
@@ -459,7 +423,6 @@
             if (b.points !== a.points) return b.points - a.points; 
             return b.top1 - a.top1;
         });
-
         document.getElementById('finals-leaderboard').innerHTML = sortedTeams.map((t, idx) => `
             <tr>
                 <td><strong>#${idx + 1}</strong></td>
@@ -472,10 +435,8 @@
 
     function endTournament() {
         if(!confirm("Bạn có chắc chắn muốn chốt kết quả giải đấu?")) return;
-        
         document.getElementById('finals-section').style.display = 'none';
         document.getElementById('summary-section').style.display = 'block';
-
         renderSummaryAdmin();
         pushDataLive('summary');
     }
@@ -485,7 +446,6 @@
             if (b.points !== a.points) return b.points - a.points;
             return b.top1 - a.top1;
         });
-        
         let top3Finalists = sortedFinalists.slice(0, 3);
         let summaryHTML = '';
         let rankColors = ['#fbbf24', '#94a3b8', '#b45309']; 
@@ -510,7 +470,6 @@
                 </div>
             </div>`;
         });
-
         document.getElementById('summary-content').innerHTML = summaryHTML;
     }
 </script>
