@@ -132,7 +132,6 @@
     let currentRound = 1;
     let finalsData = { teams: {}, matches: [] };
     
-    // Thêm trường "time" vào hàm khởi tạo match
     function initEmptyMatches(count) { return Array.from({length: count}, () => ({ t1: null, t2: null, s1: 0, s2: 0, time: "", winner: null })); }
     let matchHistory = { r1: initEmptyMatches(4), r2_high: initEmptyMatches(2), r2_low: initEmptyMatches(2), r3_mid: initEmptyMatches(2) };
 
@@ -292,7 +291,7 @@
 
     function generateNextRound() {
         let currentMatches = currentRound === 1 ? matchHistory.r1 : currentRound === 2 ? [...matchHistory.r2_high, ...matchHistory.r2_low] : matchHistory.r3_mid;
-        // Fix bug Undefined không cho chuyển vòng
+        // Fix bug Undefined
         if(!currentMatches.every(m => m.winner !== null && m.winner !== undefined)) return alert("Vui lòng nhập và LƯU đầy đủ kết quả vòng hiện tại!");
 
         currentMatches.forEach(m => {
@@ -378,13 +377,15 @@
         if(q.length !== 4) return alert("Lỗi: Chưa đủ 4 đội!");
 
         q.forEach(team => { finalsData.teams[team.id] = { id: team.id, name: team.name, points: 0, top1: 0, matchesPlayed: 0 }; });
+        
+        // Đã hoán đổi Trận 14 và Trận 16 theo yêu cầu
         finalsData.matches = [
             { id: 11, p1: q[0].id, p2: q[2].id, s1: 0, s2: 0, top1_1: 0, top1_2: 0, time: "", done: false }, 
             { id: 12, p1: q[1].id, p2: q[3].id, s1: 0, s2: 0, top1_1: 0, top1_2: 0, time: "", done: false },
             { id: 13, p1: q[0].id, p2: q[3].id, s1: 0, s2: 0, top1_1: 0, top1_2: 0, time: "", done: false }, 
-            { id: 14, p1: q[0].id, p2: q[1].id, s1: 0, s2: 0, top1_1: 0, top1_2: 0, time: "", done: false },
+            { id: 14, p1: q[1].id, p2: q[2].id, s1: 0, s2: 0, top1_1: 0, top1_2: 0, time: "", done: false }, // Đổi thành B vs C
             { id: 15, p1: q[2].id, p2: q[3].id, s1: 0, s2: 0, top1_1: 0, top1_2: 0, time: "", done: false }, 
-            { id: 16, p1: q[1].id, p2: q[2].id, s1: 0, s2: 0, top1_1: 0, top1_2: 0, time: "", done: false }
+            { id: 16, p1: q[0].id, p2: q[1].id, s1: 0, s2: 0, top1_1: 0, top1_2: 0, time: "", done: false }  // Đổi thành A vs B
         ];
 
         document.getElementById('swiss-section').style.display = 'none';
